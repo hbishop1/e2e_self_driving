@@ -13,8 +13,6 @@ def zed_camera():
     device = rospy.get_param("~device")
 
     ns = rospy.get_namespace()
-
-    print(ns)
     
     cap = cv2.VideoCapture(device)
     cap.set(cv2.CAP_PROP_FPS, fps)
