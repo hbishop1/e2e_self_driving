@@ -9,6 +9,6 @@
       </node>
 
        <node pkg="rosbag" type="record" name="train_data" output="screen"
-       args="record -o $(arg output_location) -a -d 5"/>
+       args="record --delay=5 -o $(arg output_location) -a"/>
 
 </launch>
