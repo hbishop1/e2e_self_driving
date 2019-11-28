@@ -7,15 +7,15 @@ from sensor_msgs.msg import CompressedImage
 
 def zed_camera():
 
-    rospy.init_node("camera_info_publisher", anonymous=True)
+    rospy.init_node("camera_publisher", anonymous=True)
 
-    fps = rospy.get_param("~fps")
+    rate = rospy.Rate(15) 
+
     device = rospy.get_param("~device")
 
     ns = rospy.get_namespace()
     
     cap = cv2.VideoCapture(device)
-    cap.set(cv2.CAP_PROP_FPS, fps)
 
     publisher_left = rospy.Publisher(ns + "left", CompressedImage, queue_size=10)
     publisher_right = rospy.Publisher(ns + "right", CompressedImage, queue_size=10)
@@ -30,9 +30,12 @@ def zed_camera():
             msg = CompressedImage()
             msg.header.stamp = rospy.Time.now()
             msg.format = "jpeg"
-            msg.data = np.array(cv2.imencode('.jpg', left_right_image[i])[1]).tostring()
+            msg.data = np.array(cv2.imencode('.png', left_right_image[i])[1]).tostring()
 
             [publisher_left,publisher_right][i].publish(msg)
+    
+        rate.sleep()
+
 
 if __name__ == "__main__":
 

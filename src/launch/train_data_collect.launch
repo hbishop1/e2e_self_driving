@@ -3,8 +3,7 @@
       <arg name="camera_device" default="0"/>
       <arg name="output_location" />
 
-      <node name="camera" pkg="e2e_self_driving" type="zed_camera.py" ns="camera" output="screen">
-            <param name="fps" value="$(arg fps)" />
+      <node name="camera_publisher" pkg="e2e_self_driving" type="zed_camera.py" ns="camera" output="screen">
             <param name="device" value="$(arg camera_device)" />
       </node>
 
