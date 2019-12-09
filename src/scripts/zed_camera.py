@@ -9,7 +9,7 @@ def zed_camera():
 
     rospy.init_node("camera_publisher", anonymous=True)
 
-    rate = rospy.Rate(15) 
+    rate = rospy.Rate(10) 
 
     device = rospy.get_param("~device")
 
@@ -17,8 +17,8 @@ def zed_camera():
     
     cap = cv2.VideoCapture(device)
 
-    publisher_left = rospy.Publisher(ns + "left", CompressedImage, queue_size=10)
-    publisher_right = rospy.Publisher(ns + "right", CompressedImage, queue_size=10)
+    publisher_left = rospy.Publisher(ns + "left_image", CompressedImage, queue_size=10)
+    publisher_right = rospy.Publisher(ns + "right_image", CompressedImage, queue_size=10)
     
     while not rospy.is_shutdown():
 
@@ -29,11 +29,9 @@ def zed_camera():
 
             msg = CompressedImage()
             msg.header.stamp = rospy.Time.now()
-            msg.format = "jpeg"
-            msg.data = np.array(cv2.imencode('.png', left_right_image[i])[1]).tostring()
-
+            msg.format = "png"
+            msg.data = np.array(cv2.imencode('.png', cv2.resize(left_right_image[i],(672,188)))[1]).tostring()
             [publisher_left,publisher_right][i].publish(msg)
-    
         rate.sleep()
 
 

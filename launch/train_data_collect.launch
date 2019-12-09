@@ -1,7 +1,6 @@
 <launch>
-      <arg name="fps" default="30" />
       <arg name="camera_device" default="0"/>
-      <arg name="output_location"/>
+      <arg name="output_location" default="/home/ubuntu/usb_stick/"/>
 
       <node name="camera_publisher" pkg="e2e_self_driving" type="zed_camera.py" ns="camera" output="screen">
             <param name="device" value="$(arg camera_device)" />
