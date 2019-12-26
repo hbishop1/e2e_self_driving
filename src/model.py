@@ -1,8 +1,15 @@
-from torch.utils.data import Dataset
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torchvision
+#!/usr/bin/env python3
+
+try:
+    from torch.utils.data import Dataset
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    import torchvision
+
+except ImportError:
+    print('Couldnt import pytorch')
+
 import os
 import rosbag
 import cv2
