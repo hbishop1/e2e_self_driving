@@ -1,24 +1,20 @@
-#!/usr/bin/env python3
 
-try:
-    from torch.utils.data import Dataset
-    import torch
-    import torch.nn as nn
-    import torch.nn.functional as F
-    import torchvision
 
-except ImportError:
-    print('Couldnt import pytorch')
-
-import os
-import rosbag
+from torch.utils.data import Dataset
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torchvision
 import cv2
 import pandas
+import os
 import math
 import ast
 import numpy as np
 import pickle
 import argparse
+import sys
+from datetime import datetime
 
 class Steering_loss():
 
@@ -129,6 +125,8 @@ class Stereo_steering_dataset(Dataset):
 
 if __name__ == '__main__':
 
+    sys.stdout = open('output-{}'.format(datetime.now().strftime("%d-%m-%Y_%H-%M-%S")), 'w')
+
     parser = argparse.ArgumentParser()
     parser.add_argument('data_directory', type=str, help='location of the data')
     parser.add_argument('--lr', type=float, help='learning rate', default = 0.001)
@@ -169,7 +167,7 @@ if __name__ == '__main__':
         valid_loss_arr = np.zeros(0)
 
 
-        for phase in ['train', 'test']:
+        for phase in ['train', 'valid']:
             if phase == 'train':
                 Model.train()  # Set model to training mode
             else:
