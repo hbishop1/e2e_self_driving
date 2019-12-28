@@ -125,13 +125,11 @@ class Stereo_steering_dataset(Dataset):
 
 if __name__ == '__main__':
 
-    sys.stdout = open('output-{}'.format(datetime.now().strftime("%d-%m-%Y_%H-%M-%S")), 'w')
-
     parser = argparse.ArgumentParser()
     parser.add_argument('data_directory', type=str, help='location of the data')
-    parser.add_argument('--lr', type=float, help='learning rate', default = 0.001)
+    parser.add_argument('--lr', type=float, help='learning rate', default = 0.0001)
     parser.add_argument('--num_epochs', type=int, help='number of training epochs', default=100)
-    parser.add_argument('--weight_decay', type=float, help='weight decay factor', default=0.005)
+    parser.add_argument('--weight_decay', type=float, help='weight decay factor', default=0.01)
 
     args = parser.parse_args()
 
@@ -163,17 +161,14 @@ if __name__ == '__main__':
         print('Epoch {}/{}'.format(epoch,args.num_epochs))
         
         # arrays for metrics
-        train_loss_arr = np.zeros(0)
-        valid_loss_arr = np.zeros(0)
-
+        train_loss_arr = []
+        valid_loss_arr = []
 
         for phase in ['train', 'valid']:
             if phase == 'train':
                 Model.train()  # Set model to training mode
             else:
                 Model.eval()   # Set model to evaluate mode
-
-            running_loss = 0.0
 
             # Iterate over data.
             for left, right, t in dataloaders[phase]:
@@ -192,12 +187,17 @@ if __name__ == '__main__':
                     if phase == 'train':
                         loss.backward()
                         optimiser.step()
+                        train_loss_arr.append(loss.item())
+                    else:
+                        valid_loss_arr.append(loss.item())
 
-        print('Train Loss: {:.4f} \n'.format(train_loss_arr.mean()))
-        print('Validation Loss: {:.4f} \n'.format(valid_loss_arr.mean()))
 
-        logs['train_loss'].append(train_loss_arr.mean())
-        logs['valid_loss'].append(valid_loss_arr.mean())
+
+        print('Train Loss: {:.4f}'.format(np.mean(train_loss_arr)))
+        print('Validation Loss: {:.4f}'.format(np.mean(valid_loss_arr)))
+
+        logs['train_loss'].append(np.mean(train_loss_arr))
+        logs['valid_loss'].append(np.mean(valid_loss_arr))
 
         with open('logs.p', 'wb') as fp:
             pickle.dump(logs, fp)
