@@ -10,6 +10,4 @@
             <param name="output_dir" value="$(arg output_location)" />
       </node>
 
-
-
 </launch>

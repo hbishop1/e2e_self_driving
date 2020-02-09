@@ -1,0 +1,12 @@
+<launch>
+      <arg name="rate" default="1"/>
+      <arg name="model_path" default="None"/>
+      <arg name="bag"/>
+
+      <node name="visualiser" pkg="e2e_self_driving" type="visualise.py" output="screen">     
+            <param name="model_path" value="$(arg model_path)" />
+      </node>
+
+      <node pkg="rosbag" type="play" name="player" output="screen" args="--rate $(arg rate) $(arg bag)"/>
+
+</launch>
