@@ -1,26 +1,28 @@
 from torch.utils.data import Dataset
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torchvision
 import cv2
 import pandas
 import os
-import math
-import ast
 import numpy as np
-import pickle
-import argparse
-import sys
 import h5py
-from datetime import datetime 
-from utils import *
+
+def MAE(outputs,targets):
+    total = 0
+    for i in range(outputs.size()[0]):
+        total += abs(outputs[i][0]-targets[i][0])
+    
+    return total.item()
+
+class Flatten(nn.Module):
+    def forward(self, x):
+        x = x.view(x.size()[0], -1)
+        return x
 
 class Steering_loss():
 
-    def __init__(self, train = False, weighted = False):
+    def __init__(self, weighted = False):
         super(Steering_loss,self).__init__()
-        self.train = train
+        self.train = True
         self.weighted = weighted
 
     def forward(self,outputs,target):
@@ -32,7 +34,7 @@ class Steering_loss():
 
                 multiplier = 1 if not (self.train and self.weighted) else (0.2 + abs(target[i,0]))
 
-                total_loss += sum([(outputs[i,j] - target[i,j]) ** 2 for j in range(2)]) * multiplier
+                total_loss += sum([(outputs[i,j] - target[i,j]) ** 2 for j in range(len(outputs[i]))]) * multiplier
 
         batch_loss = total_loss / batch_size
 
@@ -53,6 +55,8 @@ class Stereo_steering_dataset(Dataset):
     def __getitem__(self, idx):
 
         root_filename = self.steering_df.iloc[idx,1]
+
+        # steering commands are of the form [steering_angle, velocity]
         steering_commands = np.array([self.steering_df.iloc[idx,2],self.steering_df.iloc[idx,3]])
         left_image = cv2.imread(os.path.join(self.root_dir,'left_camera',root_filename))
         right_image = cv2.imread(os.path.join(self.root_dir,'right_camera',root_filename))
@@ -69,8 +73,8 @@ class Comma_dataset(Dataset):
 
         self.transform = transform
         self.root_dir = root_dir
-        self.image_files = sorted([os.path.join(root_dir,'camera', i) for i in os.listdir(os.path.join(root_dir,'camera')) if '11-24-51-edited' in i])
-        self.log_files = sorted([os.path.join(root_dir,'log',i) for i in os.listdir(os.path.join(root_dir,'log')) if '11-24-51-edited' in i])
+        self.image_files = sorted([os.path.join(root_dir,'camera', i) for i in os.listdir(os.path.join(root_dir,'camera')) if '-edited' in i])
+        self.log_files = sorted([os.path.join(root_dir,'log',i) for i in os.listdir(os.path.join(root_dir,'log')) if '-edited' in i])
         self.im_file_lengths = {}
         self.count = 0
 
@@ -93,18 +97,11 @@ class Comma_dataset(Dataset):
         with h5py.File(self.image_files[file_index],'r') as f_im:
             with h5py.File(self.log_files[file_index],'r') as f_log:
                 image = f_im['image'][remaining_idx]
-                image = cv2.resize(np.moveaxis(image, 0, 2),(672,188))
-                steering_angle = f_log['steering_angle'][remaining_idx]
-                speed = f_log['speed_abs'][remaining_idx]
-    
-        steering_commands = np.array([steering_angle,speed])
+                image = np.moveaxis(image, 0, 2)
+                steering_angle = min(360.0,max(-360.0,f_log['steering_angle'][remaining_idx]))
+                #speed = f_log['speed_abs'][remaining_idx]
 
-        print(self.count%100)
-        if self.count%100 == 0:
-            cv2.imwrite(f"test/{self.count}.png",image)
-            with open(f"test/{self.count}.txt",'w') as f:
-                f.write(str(steering_commands))
-        self.count +=1
+        steering_commands = np.array([steering_angle])
 
         if self.transform is not None:
             image = self.transform(image)
@@ -113,7 +110,13 @@ class Comma_dataset(Dataset):
 
     def __len__(self):
         return sum(self.im_file_lengths.values())
- 
+
+def visualise_comma(file_path):
+
+    with h5py.File(self.image_files[file_index],'r') as f_im:
+        image = f_im['image'][remaining_idx]
+        image = np.moveaxis(image, 0, 2)
+        plt.imshow(image)
 
 
 if __name__ == '__main__':

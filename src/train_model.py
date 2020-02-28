@@ -1,18 +1,10 @@
-from torch.utils.data import Dataset
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torchvision
-import cv2
-import pandas
 import os
-import math
-import ast
 import numpy as np
 import pickle
-import argparse
-import sys
-import shutil 
+import shutil
 import inspect
 from datetime import datetime 
 from models import *
@@ -34,12 +26,12 @@ if __name__ == '__main__':
 
     dataloaders = {x: torch.utils.data.DataLoader(
         params.dset(os.path.join(params.data_directory,x), transform=torchvision.transforms.ToTensor()),
-        shuffle=False, batch_size=params.batch_size
+        shuffle=True, batch_size=params.batch_size
         )
     for x in ['train', 'valid']}
 
     if 'stereo' in inspect.getargspec(params.model)[0]:
-        Model = params.model(params.stereo).to(device)
+        Model = params.model(stereo=params.stereo).to(device)
     else:
         Model = params.model().to(device)
 
@@ -55,8 +47,8 @@ if __name__ == '__main__':
     print(f'Validation set size: {len(dataloaders["valid"].dataset)}')
 
     optimiser = torch.optim.Adam(Model.parameters(), lr=params.lr, weight_decay=params.weight_decay)
-    criterion = Steering_loss()
-    logs = {'train_loss':[],'valid_loss':[]}
+    criterion = Steering_loss(weighted = params.weighted_loss)
+    logs = {'train_loss':[],'valid_loss':[],'train_mae':[],'valid_mae':[]}
 
     for epoch in range(1,params.num_epochs+1):
 
@@ -66,6 +58,8 @@ if __name__ == '__main__':
         # arrays for metrics
         train_loss_arr = []
         valid_loss_arr = []
+        train_mae_arr = []
+        valid_mae_arr = []
 
         for phase in ['train', 'valid']:
             if phase == 'train':
@@ -76,7 +70,9 @@ if __name__ == '__main__':
                 Model.eval()   # Set model to evaluate mode
 
             # Iterate over data.
-            for i, dat in enumerate(dataloaders[phase]):
+            #for i, dat in enumerate(dataloaders[phase]):
+            for i in range([5000,1000][phase == 'valid']):
+                dat = next(iter(dataloaders[phase]))
 
                 if params.stereo:
                     left, right = dat[0].to(device), dat[1].to(device)
@@ -84,30 +80,35 @@ if __name__ == '__main__':
                     image = dat[0].to(device)
 
                 # zero the parameter gradients
-                optimiser.zero_grad()   
+                optimiser.zero_grad()
 
                 # forward
                 # track history if only in train
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = Model(left, right) if params.stereo else Model(image)
                     loss = criterion.forward(outputs, dat[-1])
+                    mae = MAE(outputs,dat[-1])
 
                     # backward + optimize only if in training phase
                     if phase == 'train':
                         loss.backward()
                         optimiser.step()
                         train_loss_arr.append(loss.item())
+                        train_mae_arr.append(mae)
                     else:
                         valid_loss_arr.append(loss.item())
+                        valid_mae_arr.append(mae)
 
                 progress = int(i/(len(dataloaders[phase].dataset)/params.batch_size)*50)
-                print(f'Epoch {phase} progress: [{"#"*progress}{" "*(50-progress)}]',end='\r')
             
-            print(f'\033[K\n{phase} Loss: {np.mean([train_loss_arr,valid_loss_arr][int(phase == "valid")]):.4f} \n')
+            print(f'{phase} Loss: {np.mean([train_loss_arr,valid_loss_arr][int(phase == "valid")]):.4f}')
+            print(f'{phase} MAE: {np.mean([train_mae_arr,valid_mae_arr][int(phase == "valid")]):.4f}')
 
 
         logs['train_loss'].append(np.mean(train_loss_arr))
         logs['valid_loss'].append(np.mean(valid_loss_arr))
+        logs['train_mae'].append(np.mean(train_mae_arr))
+        logs['valid_mae'].append(np.mean(valid_mae_arr))
 
         with open(os.path.join(ROOT_DIR, 'experiments',time,'train_logs.p'), 'wb') as fp:
             pickle.dump(logs, fp)
@@ -117,7 +118,9 @@ if __name__ == '__main__':
         with open(os.path.join(ROOT_DIR, 'experiments',time,'results.txt'), 'w') as f:
             f.write(f'Epochs completed: {epoch} \n')
             f.write(f'Best train loss: {min(logs["train_loss"])} \n')
+            f.write(f'Best train MAE: {min(logs["train_mae"])} \n')
             f.write(f'Best validation loss: {min(logs["valid_loss"])} \n')
+            f.write(f'Best validation MAE: {min(logs["valid_mae"])} \n')
 
 
 

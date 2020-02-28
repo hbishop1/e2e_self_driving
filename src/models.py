@@ -1,26 +1,68 @@
-from torch.utils.data import Dataset
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchvision
-import cv2
-import pandas
-import os
-import math
-import ast
 import numpy as np
-import pickle
-import argparse
-import sys
-import h5py
-from datetime import datetime 
 from utils import *
 
 
-class Flatten(nn.Module):
-    def forward(self, x):
-        x = x.view(x.size()[0], -1)
+class Original_PilotNet(nn.Module):
+    def __init__(self,stereo=True):
+
+        super(Original_PilotNet, self).__init__()
+
+        self.stereo = stereo
+        self.feature_extract_layers = nn.ModuleList()
+        self.regression_layers = nn.ModuleList()
+
+        # input image 3 x 66 x 200
+        self.feature_extract_layers.append(nn.Conv2d(3, 24, kernel_size=5, stride=2, padding=0))
+        self.feature_extract_layers.append(nn.ReLU())
+        self.feature_extract_layers.append(nn.BatchNorm2d(24))
+
+        # 24 x 31 x 98
+        self.feature_extract_layers.append(nn.Conv2d(24, 36, kernel_size=5, stride=2, padding=0))
+        self.feature_extract_layers.append(nn.ReLU())
+        self.feature_extract_layers.append(nn.BatchNorm2d(36))
+
+        # 36 x 14 x 47
+        self.feature_extract_layers.append(nn.Conv2d(36, 48, kernel_size=5, stride=2, padding=0))
+        self.feature_extract_layers.append(nn.ReLU())
+        self.feature_extract_layers.append(nn.BatchNorm2d(48))
+
+        # 48 x 5 x 22
+        self.feature_extract_layers.append(nn.Conv2d(48, 64, kernel_size=3, stride=1, padding=0))
+        self.feature_extract_layers.append(nn.ReLU())
+        self.feature_extract_layers.append(nn.BatchNorm2d(64))
+
+        # 64 x 3 x 20
+        self.feature_extract_layers.append(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0))
+        self.feature_extract_layers.append(nn.ReLU())
+        self.feature_extract_layers.append(nn.BatchNorm2d(64))
+
+        # 64 x 1 x 18
+        self.feature_extract_layers.append(Flatten())
+
+        self.regression_layers.append(nn.Linear(in_features=64*1*18 * (int(stereo)+1), out_features=100))
+        self.regression_layers.append(nn.ReLU())
+
+        self.regression_layers.append(nn.Linear(in_features=100, out_features=50))
+        self.regression_layers.append(nn.ReLU())
+
+        self.regression_layers.append(nn.Linear(in_features=50, out_features=1))
+
+    def forward(self, left, right=None):
+        x = F.interpolate(left, (66,200))
+        for m in self.feature_extract_layers:
+            x = m(x)
+        if self.stereo:
+            y = F.interpolate(right, (66,200))
+            for m in self.feature_extract_layers:
+                y = m(y)
+            x = torch.cat((x,y), 1)
+        for m in self.regression_layers:
+            x = m(x)
         return x
+
 
 class My_PilotNet(nn.Module):
     def __init__(self,stereo=True):
@@ -71,7 +113,7 @@ class My_PilotNet(nn.Module):
         self.regression_layers.append(nn.ReLU())
         self.regression_layers.append(nn.BatchNorm1d(256))
 
-        self.regression_layers.append(nn.Linear(in_features=256, out_features=2))
+        self.regression_layers.append(nn.Linear(in_features=256, out_features=1))
 
     def forward(self, left, right=None):
         x = left
@@ -85,5 +127,3 @@ class My_PilotNet(nn.Module):
         for m in self.regression_layers:
             x = m(x)
         return x
-
-
