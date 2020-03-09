@@ -1,17 +1,19 @@
 from torch.utils.data import Dataset
 import torch.nn as nn
+import torchvision
 import cv2
 import pandas
 import os
 import numpy as np
 import h5py
+import random
 
 def MAE(outputs,targets):
     total = 0
     for i in range(outputs.size()[0]):
-        total += abs(outputs[i][0]-targets[i][0])
+        total += abs(outputs[i] - targets[i])
     
-    return total.item()
+    return total.item() / outputs.size()[0]
 
 class Flatten(nn.Module):
     def forward(self, x):
@@ -73,15 +75,19 @@ class Comma_dataset(Dataset):
 
         self.transform = transform
         self.root_dir = root_dir
-        self.image_files = sorted([os.path.join(root_dir,'camera', i) for i in os.listdir(os.path.join(root_dir,'camera')) if '-edited' in i])
+        self.image_files = sorted([os.path.join(root_dir,'camera', i) for i in os.listdir(os.path.join(root_dir,'camera'))])
         self.log_files = sorted([os.path.join(root_dir,'log',i) for i in os.listdir(os.path.join(root_dir,'log')) if '-edited' in i])
         self.im_file_lengths = {}
         self.count = 0
 
         for i in self.image_files:
             with h5py.File(i,'r') as f:
-                self.im_file_lengths[i] = f['image'].len()
-
+                self.im_file_lengths[i] = f['X'].len()
+        
+        log_file_lengths = {}
+        for i in self.log_files:
+            with h5py.File(i,'r') as f:
+                log_file_lengths[i] = f['steering_angle'].len()
 
     def __getitem__(self, idx):
 
@@ -96,7 +102,7 @@ class Comma_dataset(Dataset):
 
         with h5py.File(self.image_files[file_index],'r') as f_im:
             with h5py.File(self.log_files[file_index],'r') as f_log:
-                image = f_im['image'][remaining_idx]
+                image = f_im['X'][remaining_idx]
                 image = np.moveaxis(image, 0, 2)
                 steering_angle = min(360.0,max(-360.0,f_log['steering_angle'][remaining_idx]))
                 #speed = f_log['speed_abs'][remaining_idx]
@@ -109,14 +115,30 @@ class Comma_dataset(Dataset):
         return image, steering_commands
 
     def __len__(self):
-        return sum(self.im_file_lengths.values())
+        return sum(self.im_file_lengths.values()) 
 
-def visualise_comma(file_path):
 
-    with h5py.File(self.image_files[file_index],'r') as f_im:
-        image = f_im['image'][remaining_idx]
-        image = np.moveaxis(image, 0, 2)
-        plt.imshow(image)
+class Augmented_comma_dataset(Comma_dataset):
+
+    def __init__(self, root_dir, transform=None):
+
+        Comma_dataset.__init__(self, root_dir, None) 
+        self.child_transform = transform
+
+    def __getitem__(self, i):
+        image, target = super(Augmented_comma_dataset, self).__getitem__(i)
+        hflip = random.random() < 0.5
+        if hflip:
+            image = np.flip(image,1)
+            image = image.copy()
+            target *= -1
+
+        if self.child_transform is not None:
+            image = self.child_transform(image)
+
+        return image, target
+        
+
 
 
 if __name__ == '__main__':
