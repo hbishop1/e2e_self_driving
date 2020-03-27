@@ -123,14 +123,14 @@ class My_PilotNet(nn.Module):
         self.regression_layers.append(nn.Linear(in_features=256, out_features=1))
 
     def forward(self, left, right=None):
-        x = left
-        for m in self.feature_extract_layers:
-            x = m(x)
-        if self.stereo:
-            y = right
-            for m in self.feature_extract_layers:
-                y = m(y)
-            x = torch.cat((x,y), 1)
-        for m in self.regression_layers:
-            x = m(x)
-        return x
+        # x = left
+        # for m in self.feature_extract_layers:
+        #     x = m(x)
+        # if self.stereo:
+        #     y = right
+        #     for m in self.feature_extract_layers:
+        #         y = m(y)
+        #     x = torch.cat((x,y), 1)
+        # for m in self.regression_layers:
+        #     x = m(x)
+        return [0]

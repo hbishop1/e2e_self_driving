@@ -26,6 +26,12 @@ class Steering_loss():
         super(Steering_loss,self).__init__()
         self.train = True
         self.weighted = weighted
+        if weighted:
+            from params import train_dset
+            if train_dset in [Comma_dataset,Augmented_comma_dataset]:
+                self.max_angle = -360
+            else:
+                self.max_angle = 1
 
     def forward(self,outputs,target):
 
@@ -34,7 +40,7 @@ class Steering_loss():
 
         for i in range(batch_size):
 
-                multiplier = 1 if not (self.train and self.weighted) else (0.2 + abs(target[i,0]))
+                multiplier = 1 if not (self.train and self.weighted) else (abs(target[i,0] / self.max_angle))
 
                 total_loss += sum([(outputs[i,j] - target[i,j]) ** 2 for j in range(len(outputs[i]))]) * multiplier
 

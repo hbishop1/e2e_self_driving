@@ -6,6 +6,7 @@ import numpy as np
 import pickle
 import shutil
 import inspect
+import matplotlib.pyplot as plt
 from datetime import datetime 
 from models import *
 from utils import *
@@ -24,29 +25,28 @@ if __name__ == '__main__':
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
+    transforms = torchvision.transforms.Compose([
+        torchvision.transforms.ToTensor()
+    ])
+    
     dataloaders = {x: torch.utils.data.DataLoader(
-        params.dset(os.path.join(params.data_directory,x), transform=torchvision.transforms.ToTensor()),
-        shuffle=True, batch_size=params.batch_size
+        [params.train_dset,params.test_dset][i](os.path.join(params.data_directory,x), transform=transforms),
+        shuffle=True, 
+        batch_size=params.batch_size
         )
-    for x in ['train', 'valid']}
+    for i,x in enumerate(['train', 'valid'])}
 
     if 'stereo' in inspect.getargspec(params.model)[0]:
         Model = params.model(stereo=params.stereo).to(device)
     else:
         Model = params.model().to(device)
 
-    def weights_init(m):
-        if isinstance(m, nn.Conv2d):
-            nn.init.xavier_normal_(m.weight)
-
-    Model.apply(weights_init)
-
     print(f'Time started: {time}')
     print(f'Number of network parameters: {len(torch.nn.utils.parameters_to_vector(Model.parameters()))}')
     print(f'Training set size: {len(dataloaders["train"].dataset)}')
     print(f'Validation set size: {len(dataloaders["valid"].dataset)}')
 
-    optimiser = torch.optim.Adam(Model.parameters(), lr=params.lr, weight_decay=params.weight_decay)
+    optimiser = torch.optim.AdamW(Model.parameters(), lr=params.lr, weight_decay=params.weight_decay)
     criterion = Steering_loss(weighted = params.weighted_loss)
     logs = {'train_loss':[],'valid_loss':[],'train_mae':[],'valid_mae':[]}
 
@@ -70,14 +70,16 @@ if __name__ == '__main__':
                 Model.eval()   # Set model to evaluate mode
 
             # Iterate over data.
-            #for i, dat in enumerate(dataloaders[phase]):
-            for i in range([5000,1000][phase == 'valid']):
+            for i, dat in enumerate(dataloaders[phase]):                    
+            #for i in range([2500,500][phase == 'valid']):
                 dat = next(iter(dataloaders[phase]))
-
+            
                 if params.stereo:
                     left, right = dat[0].to(device), dat[1].to(device)
                 else:
                     image = dat[0].to(device)
+
+                targets = dat[-1].float().to(device)
 
                 # zero the parameter gradients
                 optimiser.zero_grad()
@@ -86,8 +88,8 @@ if __name__ == '__main__':
                 # track history if only in train
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = Model(left, right) if params.stereo else Model(image)
-                    loss = criterion.forward(outputs, dat[-1])
-                    mae = MAE(outputs,dat[-1])
+                    loss = criterion.forward(outputs, targets)
+                    mae = MAE(outputs,targets)
 
                     # backward + optimize only if in training phase
                     if phase == 'train':
@@ -100,7 +102,7 @@ if __name__ == '__main__':
                         valid_mae_arr.append(mae)
 
                 progress = int(i/(len(dataloaders[phase].dataset)/params.batch_size)*50)
-            
+
             print(f'{phase} Loss: {np.mean([train_loss_arr,valid_loss_arr][int(phase == "valid")]):.4f}')
             print(f'{phase} MAE: {np.mean([train_mae_arr,valid_mae_arr][int(phase == "valid")]):.4f}')
 
