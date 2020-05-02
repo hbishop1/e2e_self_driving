@@ -85,7 +85,7 @@ class Comma_dataset(Dataset):
         self.transform = transform
         self.root_dir = root_dir
         self.image_files = sorted([os.path.join(root_dir,'camera', i) for i in os.listdir(os.path.join(root_dir,'camera'))])
-        self.log_files = sorted([os.path.join(root_dir,'log',i) for i in os.listdir(os.path.join(root_dir,'log')) if filtered != ('-edited' in i)])
+        self.log_files = sorted([os.path.join(root_dir,'log',i) for i in os.listdir(os.path.join(root_dir,'log')) if filtered == ('-edited' in i)])
         self.im_file_lengths = {}
         self.count = 0
         self.return_restart = return_restart
