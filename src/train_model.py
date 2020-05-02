@@ -31,17 +31,30 @@ if __name__ == '__main__':
     
     dataloaders = {x: torch.utils.data.DataLoader(
         [params.train_dset,params.test_dset][i](os.path.join(params.data_directory,x), transform=transforms),
-        shuffle=True, 
+        shuffle = False, 
         batch_size=params.batch_size
         )
     for i,x in enumerate(['train', 'valid'])}
 
     if 'stereo' in inspect.getargspec(params.model)[0]:
-        Model = params.model(stereo=params.stereo).to(device)
+        Model = params.model(
+            stereo=params.stereo,
+            dropout_conv=params.dropout_conv,
+            dropout_fc=params.dropout_fc,
+            ).to(device)
     else:
-        Model = params.model().to(device)
+        Model = params.model(
+            dropout_conv=params.dropout_conv,
+            dropout_fc=params.dropout_fc,
+            ).to(device)
 
-    print(f'Time started: {time}')
+    if not params.pre_train_path is None:
+        if params.reinitialise_fc:
+            for layer in Model.regression_layers:
+                if isinstance(layer,nn.Linear):
+                    torch.nn.init.xavier_uniform(layer.weight)
+
+    print(f'Time started: {time}')  
     print(f'Number of network parameters: {len(torch.nn.utils.parameters_to_vector(Model.parameters()))}')
     print(f'Training set size: {len(dataloaders["train"].dataset)}')
     print(f'Validation set size: {len(dataloaders["valid"].dataset)}')
@@ -49,9 +62,9 @@ if __name__ == '__main__':
     optimiser = torch.optim.AdamW(Model.parameters(), lr=params.lr, weight_decay=params.weight_decay)
     criterion = Steering_loss(weighted = params.weighted_loss)
     logs = {'train_loss':[],'valid_loss':[],'train_mae':[],'valid_mae':[]}
+    best_valid_loss = np.Inf
 
     for epoch in range(1,params.num_epochs+1):
-
         print('-' * 10)
         print(f'Epoch {epoch}/{params.num_epochs} \n')
         
@@ -60,6 +73,7 @@ if __name__ == '__main__':
         valid_loss_arr = []
         train_mae_arr = []
         valid_mae_arr = []
+        whiteness_arr = []
 
         for phase in ['train', 'valid']:
             if phase == 'train':
@@ -72,7 +86,7 @@ if __name__ == '__main__':
             # Iterate over data.
             for i, dat in enumerate(dataloaders[phase]):                    
             #for i in range([2500,500][phase == 'valid']):
-                dat = next(iter(dataloaders[phase]))
+             #   dat = next(iter(dataloaders[phase]))
             
                 if params.stereo:
                     left, right = dat[0].to(device), dat[1].to(device)
@@ -101,8 +115,6 @@ if __name__ == '__main__':
                         valid_loss_arr.append(loss.item())
                         valid_mae_arr.append(mae)
 
-                progress = int(i/(len(dataloaders[phase].dataset)/params.batch_size)*50)
-
             print(f'{phase} Loss: {np.mean([train_loss_arr,valid_loss_arr][int(phase == "valid")]):.4f}')
             print(f'{phase} MAE: {np.mean([train_mae_arr,valid_mae_arr][int(phase == "valid")]):.4f}')
 
@@ -115,7 +127,10 @@ if __name__ == '__main__':
         with open(os.path.join(ROOT_DIR, 'experiments',time,'train_logs.p'), 'wb') as fp:
             pickle.dump(logs, fp)
 
-        torch.save(Model.state_dict(), os.path.join(ROOT_DIR, 'experiments', time, 'model.pt'))
+        if np.mean(valid_loss_arr) < best_valid_loss:
+            #Model.mse = torch.tensor([np.mean(train_loss_arr)])
+            torch.save(Model.state_dict(), os.path.join(ROOT_DIR, 'experiments', time, 'model.pt'))
+            best_valid_loss = np.mean(valid_loss_arr)
 
         with open(os.path.join(ROOT_DIR, 'experiments',time,'results.txt'), 'w') as f:
             f.write(f'Epochs completed: {epoch} \n')
